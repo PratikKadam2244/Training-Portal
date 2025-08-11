@@ -26,17 +26,25 @@ class OTPService {
       });
       await otpDoc.save();
 
+      // For development - always log OTP to console (since Twilio is not configured)
+      console.log(`\n=== OTP SENT ===`);
+      console.log(`Mobile: ${mobile}`);
+      console.log(`OTP: ${otp}`);
+      console.log(`Valid for: 5 minutes`);
+      console.log(`================\n`);
+      
       // Send SMS (if Twilio is configured)
       if (this.client && process.env.TWILIO_PHONE_NUMBER) {
-        await this.client.messages.create({
-          body: `Your DB Skills Portal verification code is: ${otp}. Valid for 5 minutes.`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: `+91${mobile}`
-        });
-        console.log(`OTP sent via SMS to ${mobile}`);
-      } else {
-        // For development - log OTP to console
-        console.log(`OTP for ${mobile}: ${otp}`);
+        try {
+          await this.client.messages.create({
+            body: `Your DB Skills Portal verification code is: ${otp}. Valid for 5 minutes.`,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: `+91${mobile}`
+          });
+          console.log(`OTP also sent via SMS to ${mobile}`);
+        } catch (smsError) {
+          console.log(`SMS sending failed, but OTP is available in console: ${smsError.message}`);
+        }
       }
 
       return { success: true, message: 'OTP sent successfully' };

@@ -9,6 +9,10 @@ const candidateRoutes = require('./routes/candidates');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+console.log('🚀 Starting DB Skills Portal Server...');
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Port:', PORT);
+
 // Connect to MongoDB
 connectDB();
 

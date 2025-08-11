@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Shield, User, Search, Upload, Check, ArrowRight, ArrowLeft, FileText, Clock, CheckCircle } from 'lucide-react';
 import apiService from './services/api';
+import { extractAadharData } from './services/ocrService';
 
 type Screen = 'verification' | 'registration' | 'status';
 
@@ -41,6 +42,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
 
   const categories = ['Category 1 - Basic Skills', 'Category 2 - Intermediate Skills', 'Category 3 - Advanced Skills', 'Category 4 - Specialized Skills'];
   const centers = ['Center A - Delhi', 'Center B - Mumbai', 'Center C - Bangalore', 'Center D - Chennai'];
@@ -90,35 +92,39 @@ function App() {
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      setLoading(true);
+      setExtracting(true);
+      setError(null);
       
-      // Simulate Aadhar data extraction from file (In real implementation, use OCR service)
-      setTimeout(() => {
-        setCandidateData(prev => ({
-          ...prev,
-          name: 'Rajesh Kumar',
-          dob: '1992-03-15',
-          aadhar: '2345-6789-0123'
-        }));
-        setLoading(false);
-        alert('Aadhar data extracted successfully!');
-      }, 1000);
+      try {
+        const extractedData = await extractAadharData(file);
+        
+        if (extractedData.name || extractedData.dob || extractedData.aadhar) {
+          setCandidateData(prev => ({
+            ...prev,
+            name: extractedData.name || prev.name,
+            dob: extractedData.dob || prev.dob,
+            aadhar: extractedData.aadhar || prev.aadhar
+          }));
+          alert('Aadhar data extracted successfully!');
+        } else {
+          setError('Could not extract data from the uploaded file. Please ensure it\'s a clear image of an Aadhar card.');
+        }
+      } catch (error) {
+        console.error('OCR Error:', error);
+        setError('Failed to process the uploaded file. Please try again with a clearer image.');
+      } finally {
+        setExtracting(false);
+      }
     }
   };
 
   const handleAadharScan = () => {
-    // Simulate Aadhar scanning
-    setCandidateData(prev => ({
-      ...prev,
-      name: 'Priya Sharma',
-      dob: '1985-08-20',
-      aadhar: '9876-5432-1098'
-    }));
-    alert('Aadhar scanned successfully!');
+    // This would integrate with camera API for real scanning
+    alert('Camera scanning feature will be implemented. For now, please use file upload.');
   };
 
   const checkRecord = async () => {
@@ -295,13 +301,16 @@ function App() {
               </label>
               <input
                 type="tel"
+                maxLength={10}
                 value={candidateData.mobile}
                 onChange={(e) => {
                   const value = e.target.value.replace(/\D/g, '').slice(0, 10);
                   setCandidateData(prev => ({ ...prev, mobile: value }));
                 }}
+                onFocus={(e) => e.target.select()}
                 placeholder="Enter 10-digit mobile number"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-mono"
+                autoComplete="tel"
               />
             </div>
             <button
@@ -325,13 +334,16 @@ function App() {
                 </label>
                 <input
                   type="text"
+                  maxLength={4}
                   value={otp}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '').slice(0, 4);
                     setOtp(value);
                   }}
+                  onFocus={(e) => e.target.select()}
                   placeholder="Enter 4-digit OTP"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg text-center"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg text-center font-mono"
+                  autoComplete="one-time-code"
                 />
               </div>
               <button
@@ -366,24 +378,37 @@ function App() {
               <input
                 type="file"
                 id="aadhar-upload"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept="image/*,.pdf"
                 onChange={handleFileSelect}
                 className="hidden"
               />
               <label
                 htmlFor="aadhar-upload"
-                className="flex flex-col items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-blue-600 font-medium cursor-pointer"
+                className={`flex flex-col items-center justify-center w-full px-4 py-3 border-2 border-dashed rounded-lg font-medium cursor-pointer transition-colors ${
+                  extracting 
+                    ? 'border-blue-400 bg-blue-50 text-blue-600' 
+                    : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-blue-600'
+                }`}
               >
-                <Upload className="w-5 h-5 mb-2" />
-                {selectedFile ? selectedFile.name : 'Choose File'}
+                {extracting ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    Extracting data...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-5 h-5 mb-2" />
+                    {selectedFile ? selectedFile.name : 'Choose Aadhar File'}
+                  </>
+                )}
               </label>
             </div>
             <button
               onClick={handleAadharScan}
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex flex-col items-center justify-center"
+              disabled={extracting}
+              className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex flex-col items-center justify-center transition-colors"
             >
-              {loading ? (
+              {extracting ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mb-2"></div>
               ) : (
                 <FileText className="w-5 h-5 mb-2" />
@@ -392,7 +417,7 @@ function App() {
             </button>
           </div>
           <div className="text-xs text-gray-500 text-center">
-            Auto-filled data will appear below after scanning
+            Upload a clear image of your Aadhar card for automatic data extraction
           </div>
         </div>
 
@@ -406,8 +431,9 @@ function App() {
                 <input
                   type="text"
                   value={candidateData.name}
-                  readOnly
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded text-gray-700"
+                  onChange={(e) => setCandidateData(prev => ({ ...prev, name: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -415,8 +441,9 @@ function App() {
                 <input
                   type="date"
                   value={candidateData.dob}
-                  readOnly
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded text-gray-700"
+                  onChange={(e) => setCandidateData(prev => ({ ...prev, dob: e.target.value }))}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <div className="md:col-span-2">
@@ -424,8 +451,14 @@ function App() {
                 <input
                   type="text"
                   value={candidateData.aadhar}
-                  readOnly
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded text-gray-700"
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 12);
+                    const formatted = value.replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3');
+                    setCandidateData(prev => ({ ...prev, aadhar: formatted }));
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="1234-5678-9012"
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono"
                 />
               </div>
             </div>
@@ -486,8 +519,9 @@ function App() {
               <input
                 type="text"
                 value={candidateData.name}
-                readOnly
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-700"
+                onChange={(e) => setCandidateData(prev => ({ ...prev, name: e.target.value }))}
+                onFocus={(e) => e.target.select()}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -495,8 +529,9 @@ function App() {
               <input
                 type="date"
                 value={candidateData.dob}
-                readOnly
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-700"
+                onChange={(e) => setCandidateData(prev => ({ ...prev, dob: e.target.value }))}
+                onFocus={(e) => e.target.select()}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -509,6 +544,7 @@ function App() {
             <textarea
               value={candidateData.address}
               onChange={(e) => setCandidateData(prev => ({ ...prev, address: e.target.value }))}
+              onFocus={(e) => e.target.select()}
               placeholder="Enter complete address"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
@@ -526,6 +562,7 @@ function App() {
                          e.target.value.includes('Category 2') ? '3 months' :
                          e.target.value.includes('Category 3') ? '4 months' : '6 months'
               }))}
+              onFocus={(e) => e.target.select()}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             >
               <option value="">Select Category</option>
@@ -540,6 +577,7 @@ function App() {
             <select
               value={candidateData.center}
               onChange={(e) => setCandidateData(prev => ({ ...prev, center: e.target.value }))}
+              onFocus={(e) => e.target.select()}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             >
               <option value="">Select Center</option>
@@ -554,6 +592,7 @@ function App() {
             <select
               value={candidateData.trainer}
               onChange={(e) => setCandidateData(prev => ({ ...prev, trainer: e.target.value }))}
+              onFocus={(e) => e.target.select()}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             >
               <option value="">Select Trainer</option>
@@ -609,6 +648,7 @@ function App() {
             <div className="flex gap-2">
               <input
                 type="text"
+                onFocus={(e) => e.target.select()}
                 placeholder="Enter Aadhar number"
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                 onBlur={(e) => e.target.value && searchCandidate('aadhar', e.target.value)}
@@ -638,6 +678,7 @@ function App() {
             <div className="flex gap-2">
               <input
                 type="tel"
+                onFocus={(e) => e.target.select()}
                 placeholder="Enter mobile number"
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                 onBlur={(e) => e.target.value && searchCandidate('mobile', e.target.value)}
